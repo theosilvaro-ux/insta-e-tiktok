@@ -1,0 +1,286 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated creator workspace profile linked to Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the creator."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Verified email address of the creator."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Display name from Google Sign-In."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Avatar URL from Google Sign-In."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "AutomationSettings": {
+      "title": "AutomationSettings",
+      "description": "Default cross-posting and 1-click auto-publish configuration for a creator.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "autoPublishOnDrop": {
+          "type": "boolean"
+        },
+        "defaultTargets": {
+          "type": "array",
+          "description": "Selected target platforms ('instagram', 'tiktok')."
+        },
+        "defaultHashtags": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "instagramShareToFeed": {
+          "type": "boolean"
+        },
+        "tiktokPrivacyLevel": {
+          "type": "string",
+          "enum": [
+            "PUBLIC_TO_EVERYONE",
+            "MUTUAL_FOLLOW_FRIENDS",
+            "FOLLOWER_OF_CREATOR",
+            "SELF_ONLY"
+          ]
+        },
+        "tiktokAllowComment": {
+          "type": "boolean"
+        },
+        "tiktokAllowDuet": {
+          "type": "boolean"
+        },
+        "tiktokAllowStitch": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "autoPublishOnDrop",
+        "defaultTargets",
+        "defaultHashtags",
+        "instagramShareToFeed",
+        "tiktokPrivacyLevel",
+        "tiktokAllowComment",
+        "tiktokAllowDuet",
+        "tiktokAllowStitch",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SocialAccount": {
+      "title": "SocialAccount",
+      "description": "Connected Instagram or TikTok creator account and OAuth token metadata.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["instagram", "tiktok"]
+        },
+        "externalUserId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "avatarUrl": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "accountType": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "accessToken": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "refreshToken": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "expiresAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "connectedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "privacyOptions": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "platform",
+        "externalUserId",
+        "username",
+        "displayName",
+        "accessToken",
+        "connectedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PublishJob": {
+      "title": "PublishJob",
+      "description": "Cross-posting video upload, schedule, and delivery state for Instagram and TikTok.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 2200
+        },
+        "hashtags": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["now", "schedule"]
+        },
+        "scheduledAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "coverTimestampMs": {
+          "type": "number"
+        },
+        "video": {
+          "type": "object"
+        },
+        "videoUrl": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "instagramOptions": {
+          "type": "object"
+        },
+        "tiktokOptions": {
+          "type": "object"
+        },
+        "deliveries": {
+          "type": "object"
+        },
+        "createdAtIso": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "caption",
+        "hashtags",
+        "mode",
+        "coverTimestampMs",
+        "video",
+        "videoUrl",
+        "instagramOptions",
+        "tiktokOptions",
+        "deliveries",
+        "createdAtIso",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Root creator profile document keyed by Firebase Auth UID."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AutomationSettings" },
+      "description": "Creator automation preferences (e.g. 'automation')."
+    },
+    "/users/{userId}/accounts/{platform}": {
+      "schema": { "$ref": "#/entities/SocialAccount" },
+      "description": "Connected Instagram or TikTok account credentials and profile."
+    },
+    "/users/{userId}/jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/PublishJob" },
+      "description": "Cross-posting video jobs, schedules, and delivery status."
+    }
+  }
+}

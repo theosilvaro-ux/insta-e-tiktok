@@ -1,0 +1,6 @@
+{
+  "name": "PostaJá Studio",
+  "description": "Plataforma para enviar um vídeo uma única vez e publicar automaticamente no Instagram Reels e no TikTok.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

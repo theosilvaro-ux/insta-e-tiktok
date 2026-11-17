@@ -1,0 +1,385 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerified() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    function userExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function isValidOptionalString(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    // Entity Validators
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 254
+        && isValidOptionalString(data, 'displayName', 120)
+        && isValidOptionalString(data, 'photoURL', 512)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAutomationSettings(data, userId) {
+      return data.keys().hasAll([
+          'userId',
+          'autoPublishOnDrop',
+          'defaultTargets',
+          'defaultHashtags',
+          'instagramShareToFeed',
+          'tiktokPrivacyLevel',
+          'tiktokAllowComment',
+          'tiktokAllowDuet',
+          'tiktokAllowStitch',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'autoPublishOnDrop',
+          'defaultTargets',
+          'defaultHashtags',
+          'instagramShareToFeed',
+          'tiktokPrivacyLevel',
+          'tiktokAllowComment',
+          'tiktokAllowDuet',
+          'tiktokAllowStitch',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.autoPublishOnDrop is bool
+        && data.defaultTargets is list
+        && data.defaultTargets.size() <= 2
+        && data.defaultTargets.hasOnly(['instagram', 'tiktok'])
+        && (data.defaultTargets.size() == 0 || data.defaultTargets[0] is string)
+        && data.defaultHashtags is string
+        && data.defaultHashtags.size() <= 500
+        && data.instagramShareToFeed is bool
+        && data.tiktokPrivacyLevel in [
+          'PUBLIC_TO_EVERYONE',
+          'MUTUAL_FOLLOW_FRIENDS',
+          'FOLLOWER_OF_CREATOR',
+          'SELF_ONLY'
+        ]
+        && data.tiktokAllowComment is bool
+        && data.tiktokAllowDuet is bool
+        && data.tiktokAllowStitch is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSocialAccount(data, userId, platform) {
+      return data.keys().hasAll([
+          'userId',
+          'platform',
+          'externalUserId',
+          'username',
+          'displayName',
+          'accessToken',
+          'connectedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'platform',
+          'externalUserId',
+          'username',
+          'displayName',
+          'avatarUrl',
+          'accountType',
+          'accessToken',
+          'refreshToken',
+          'expiresAt',
+          'connectedAt',
+          'privacyOptions',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.platform in ['instagram', 'tiktok']
+        && data.platform == platform
+        && data.externalUserId is string
+        && data.externalUserId.size() <= 128
+        && data.username is string
+        && data.username.size() <= 100
+        && data.displayName is string
+        && data.displayName.size() <= 120
+        && isValidOptionalString(data, 'avatarUrl', 1024)
+        && isValidOptionalString(data, 'accountType', 40)
+        && data.accessToken is string
+        && data.accessToken.size() >= 1
+        && data.accessToken.size() <= 2048
+        && isValidOptionalString(data, 'refreshToken', 2048)
+        && isValidOptionalString(data, 'expiresAt', 64)
+        && data.connectedAt is string
+        && data.connectedAt.size() <= 64
+        && (!('privacyOptions' in data) || (
+          data.privacyOptions is list
+          && data.privacyOptions.size() <= 10
+          && (data.privacyOptions.size() == 0 || (data.privacyOptions[0] is string && data.privacyOptions[0].size() <= 64))
+        ))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDeliveryEntry(entry, expectedPlatform) {
+      return entry is map
+        && entry.keys().hasAll(['platform', 'enabled', 'status', 'progressMessage', 'updatedAt'])
+        && entry.keys().hasOnly(['platform', 'enabled', 'status', 'progressMessage', 'externalId', 'permalink', 'error', 'updatedAt'])
+        && entry.platform == expectedPlatform
+        && entry.enabled is bool
+        && entry.status in ['idle', 'scheduled', 'uploading', 'processing', 'published', 'failed']
+        && entry.progressMessage is string
+        && entry.progressMessage.size() <= 300
+        && isValidOptionalString(entry, 'externalId', 200)
+        && isValidOptionalString(entry, 'permalink', 1024)
+        && isValidOptionalString(entry, 'error', 1000)
+        && entry.updatedAt is string
+        && entry.updatedAt.size() <= 64;
+    }
+
+    function isValidVideoMap(v) {
+      return v is map
+        && v.keys().hasAll(['originalName', 'filename', 'mimeType', 'sizeBytes', 'durationSec', 'width', 'height'])
+        && v.keys().hasOnly(['originalName', 'filename', 'mimeType', 'sizeBytes', 'durationSec', 'width', 'height'])
+        && v.originalName is string && v.originalName.size() <= 260
+        && v.filename is string && v.filename.size() <= 200
+        && v.mimeType is string && v.mimeType.size() <= 80
+        && v.sizeBytes is number && v.sizeBytes >= 0
+        && v.durationSec is number && v.durationSec >= 0
+        && v.width is number && v.width >= 0
+        && v.height is number && v.height >= 0;
+    }
+
+    function isValidPublishJob(data, userId, jobId) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'caption',
+          'hashtags',
+          'mode',
+          'scheduledAt',
+          'coverTimestampMs',
+          'video',
+          'videoUrl',
+          'instagramOptions',
+          'tiktokOptions',
+          'deliveries',
+          'createdAtIso',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'userId',
+          'caption',
+          'hashtags',
+          'mode',
+          'scheduledAt',
+          'coverTimestampMs',
+          'video',
+          'videoUrl',
+          'instagramOptions',
+          'tiktokOptions',
+          'deliveries',
+          'createdAtIso',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.id is string
+        && isValidId(data.id)
+        && data.id == jobId
+        && data.userId is string
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.caption is string && data.caption.size() <= 2200
+        && data.hashtags is string && data.hashtags.size() <= 500
+        && data.mode in ['now', 'schedule']
+        && (data.scheduledAt == null || (data.scheduledAt is string && data.scheduledAt.size() <= 64))
+        && data.coverTimestampMs is number && data.coverTimestampMs >= 0
+        && isValidVideoMap(data.video)
+        && data.videoUrl is string && data.videoUrl.size() <= 1024
+        && data.instagramOptions is map
+        && data.instagramOptions.keys().hasAll(['shareToFeed'])
+        && data.instagramOptions.keys().hasOnly(['shareToFeed'])
+        && data.instagramOptions.shareToFeed is bool
+        && data.tiktokOptions is map
+        && data.tiktokOptions.keys().hasAll(['privacyLevel', 'allowComment', 'allowDuet', 'allowStitch'])
+        && data.tiktokOptions.keys().hasOnly(['privacyLevel', 'allowComment', 'allowDuet', 'allowStitch'])
+        && data.tiktokOptions.privacyLevel in [
+          'PUBLIC_TO_EVERYONE',
+          'MUTUAL_FOLLOW_FRIENDS',
+          'FOLLOWER_OF_CREATOR',
+          'SELF_ONLY'
+        ]
+        && data.tiktokOptions.allowComment is bool
+        && data.tiktokOptions.allowDuet is bool
+        && data.tiktokOptions.allowStitch is bool
+        && data.deliveries is map
+        && data.deliveries.keys().hasAll(['instagram', 'tiktok'])
+        && data.deliveries.keys().hasOnly(['instagram', 'tiktok'])
+        && isValidDeliveryEntry(data.deliveries.instagram, 'instagram')
+        && isValidDeliveryEntry(data.deliveries.tiktok, 'tiktok')
+        && data.createdAtIso is string && data.createdAtIso.size() <= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function preservesPublishedDeliveries(nextDeliveries, prevDeliveries) {
+      return (prevDeliveries.instagram.status != 'published' || nextDeliveries.instagram.status == 'published')
+        && (prevDeliveries.tiktok.status != 'published' || nextDeliveries.tiktok.status == 'published');
+    }
+
+    // Collection Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isVerified() && request.auth.uid == userId && resource.data.userId == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(settingId)
+          && settingId == 'automation'
+          && userExists(userId)
+          && isValidAutomationSettings(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(settingId)
+          && settingId == 'automation'
+          && userExists(userId)
+          && isValidAutomationSettings(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'autoPublishOnDrop',
+            'defaultTargets',
+            'defaultHashtags',
+            'instagramShareToFeed',
+            'tiktokPrivacyLevel',
+            'tiktokAllowComment',
+            'tiktokAllowDuet',
+            'tiktokAllowStitch',
+            'updatedAt'
+          ]);
+        allow delete: if false;
+      }
+
+      match /accounts/{platform} {
+        allow get: if isOwner(userId) && platform in ['instagram', 'tiktok'];
+        allow list: if isVerified() && request.auth.uid == userId && resource.data.userId == request.auth.uid;
+        allow create: if isOwner(userId)
+          && platform in ['instagram', 'tiktok']
+          && userExists(userId)
+          && isValidSocialAccount(incoming(), userId, platform)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && platform in ['instagram', 'tiktok']
+          && userExists(userId)
+          && isValidSocialAccount(incoming(), userId, platform)
+          && incoming().userId == existing().userId
+          && incoming().platform == existing().platform
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'externalUserId',
+            'username',
+            'displayName',
+            'avatarUrl',
+            'accountType',
+            'accessToken',
+            'refreshToken',
+            'expiresAt',
+            'connectedAt',
+            'privacyOptions',
+            'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && platform in ['instagram', 'tiktok'];
+      }
+
+      match /jobs/{jobId} {
+        allow get: if isOwner(userId) && isValidId(jobId);
+        allow list: if isVerified() && request.auth.uid == userId && resource.data.userId == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(jobId)
+          && userExists(userId)
+          && isValidPublishJob(incoming(), userId, jobId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(jobId)
+          && userExists(userId)
+          && isValidPublishJob(incoming(), userId, jobId)
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().createdAtIso == existing().createdAtIso
+          && incoming().updatedAt == request.time
+          && preservesPublishedDeliveries(incoming().deliveries, existing().deliveries)
+          && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['deliveries', 'updatedAt'])
+            || incoming().diff(existing()).affectedKeys().hasOnly(['mode', 'scheduledAt', 'deliveries', 'updatedAt'])
+          );
+        allow delete: if isOwner(userId) && isValidId(jobId);
+      }
+    }
+  }
+}
